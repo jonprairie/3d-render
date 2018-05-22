@@ -1,10 +1,10 @@
 (defparameter test-img nil)
 
 
-(defun reset-test-img () 
-  (setf test-img (make-8-bit-gray-image 32 32))
+(defun reset-test-img (&key (resolution '(32 32)) (color 255))
+  (setf test-img (make-8-bit-gray-image (car resolution) (cadr resolution)))
   (let ((out-img (output-image "~/test.png")))
-    (fill-image test-img 255)
+    (fill-image test-img color)
     (write-png-file out-img test-img) test-img))
 
 
@@ -14,11 +14,11 @@
 	 (inp (read-png-file out)))
     (setf test-img inp)
     (time
-     (draw-line test-img 0 0 32 32))
+     (draw-line test-img 16 8 0 0))
     (write-png-file out test-img)))
 
 
-(defun draw-line (img x0 y0 x1 y1 &optional (color 0))
+(defun draw-line (img x0 y0 x1 y1 &key (color 0))
   (multiple-value-bind (first-x first-y second-x second-y)
       (if (< x0 x1)
 	  (values x0 y0 x1 y1)
@@ -45,6 +45,133 @@
 
 
 (defun parse-obj-vertex-line (line)
-  (register-groups-bind (x y z w)
-      ("v (-?[0-9\.]*) (-?[0-9\.]*) (-?[0-9\.]*) ?(-?[0-9\.]*)?" line)
+  (cl-ppcre:register-groups-bind (x y z w)
+					;("^v (-?[0-9\.]*) (-?[0-9\.]*) (-?[0-9\.]*) ?(-?[0-9\.]*)?" line)
+      ("^v ([^ ]*) ([^ ]*) ([^ ]*) ?([^ ]*)?" line)
     (list x y z (if (> (length w) 0) w "1.0"))))
+
+
+(defparameter face-regex-triple
+  (concatenate 'string
+	       "^f "
+	       "([0-9]*)/?([0-9]*)?/?([0-9]*)? "
+	       "([0-9]*)/?([0-9]*)?/?([0-9]*)? "
+	       "([0-9]*)/?([0-9]*)?/?([0-9]*)?"))
+
+(defun parse-obj-face-line (line)
+  (cl-ppcre:register-groups-bind (v1 vt1 vn1 v2 vt2 vn2 v3 vt3 vn3)
+      (face-regex-triple line)
+    (list (list v1 v2 v3)
+	  (list vt1 vt2 vt3)
+	  (list vn1 vn2 vn3))))
+
+
+(defmacro let-cond (&body body)
+  (when (car body)
+    `(let ((result ,(caar body)))
+       (if result
+	   ,(car (cdr (car body)))
+	   (let-cond
+	     ,@(cdr body))))))
+
+
+(defun parse-float (str)
+  (with-input-from-string (stream str)
+    (read stream)))
+
+
+(defun read-obj-file (path)
+  (let ((in (open path :if-does-not-exist nil))
+	(vertices (make-array 0 :adjustable t :fill-pointer t))
+	(faces (make-array 0 :adjustable t :fill-pointer t)))
+    (when in
+      (loop for line = (read-line in nil)
+	 while line do
+	   (let-cond
+	     ((parse-obj-vertex-line line)
+	      (vector-push-extend
+	       (mapcar #'parse-float result) vertices))
+	     ((parse-obj-face-line line)
+	      (vector-push-extend
+	       (loop for triple in result
+		  collect (mapcar #'parse-integer triple))
+	       faces)))))
+    (values vertices faces)))
+
+
+(defun straight-on (vertex)
+  (list (car vertex) (cadr vertex)))
+
+
+(defun 11to01 (num)
+  (/ (1+ num) 2))
+
+
+(defun clamp (val low high)
+  (cond
+    ((< val low) low)
+    ((> val high) high)
+    (t val)))
+
+
+(defun vertex->pixel (vertex
+		      &key
+			(resolution '(1024 1024))
+			(projection #'straight-on))
+  (let* ((projected-vertex (funcall projection vertex))
+	 (x (round (* (11to01 (car projected-vertex))
+		      (car resolution))))
+	 (y (round (* (11to01 (cadr projected-vertex))
+		      (cadr resolution))))
+	 (clamped-x (clamp x 0 (1- (car resolution))))
+	 (clamped-y (clamp y 0 (1- (cadr resolution)))))
+    (list clamped-x clamped-y)))
+
+
+(defun wire-render (vertices faces img
+		    &key
+		      (resolution '(1024 1024))
+		      (projection #'straight-on)
+		      (color 0))
+  (loop for face in (coerce faces 'list)
+     do
+       (let* ((face-triple (car face))
+	      (v1-index (car face-triple))
+	      (v2-index (cadr face-triple))
+	      (v3-index (caddr face-triple))
+	      (v1 (elt vertices (1- v1-index)))
+	      (v2 (elt vertices (1- v2-index)))
+	      (v3 (elt vertices (1- v3-index)))
+	      (projected-v1 (vertex->pixel v1
+					   :resolution resolution
+					   :projection projection))
+	      (projected-v2 (vertex->pixel v2
+					   :resolution resolution
+					   :projection projection))
+	      (projected-v3 (vertex->pixel v3
+					   :resolution resolution
+					   :projection projection))
+	      (x1 (car projected-v1))
+	      (x2 (car projected-v2))
+	      (x3 (car projected-v3))
+	      (y1 (cadr projected-v1))
+	      (y2 (cadr projected-v2))
+	      (y3 (cadr projected-v3)))
+	 (draw-line img x1 y1 x2 y2 :color color)
+	 (draw-line img x2 y2 x3 y3 :color color)
+	 (draw-line img x1 y1 x3 y3 :color color))))
+
+
+(defun test-wireframe ()
+  (let ((resolution '(1024 1024)))
+    (reset-test-img :resolution resolution :color 0)
+    (let* ((out (output-image "~/test.png")) 
+	   (inp (read-png-file out)))
+      (setf test-img inp)
+      (multiple-value-bind (vertices faces)
+	  (read-obj-file "~/quicklisp/local-projects/3d-render/head.obj")
+	(time
+	 (wire-render vertices faces test-img
+		      :resolution resolution
+		      :color 255)))
+      (write-png-file out test-img))))
