@@ -152,16 +152,20 @@
 		(draw-line img x1 y1 x2 y2 :color color))))))
 
 
+(defun refresh-image ()
+  (let ((out (output-image "~/test.png")))
+    (write-png-file out test-img)))
+
 (defun test-wireframe ()
   (let ((resolution '(1024 1024)))
     (reset-test-img :resolution resolution :color 0)
-    (let* ((out (output-image "~/test.png")) 
-	   (inp (read-png-file out)))
-      (setf test-img inp)
-      (multiple-value-bind (vertices faces)
-	  (read-obj-file "~/quicklisp/local-projects/3d-render/head.obj")
-	(time
-	 (wire-render vertices faces test-img
-		      :resolution resolution
-		      :color 255)))
-      (write-png-file out test-img))))
+    (multiple-value-bind (vertices faces)
+	(read-obj-file "~/quicklisp/local-projects/3d-render/head.obj")
+      ;;(read-obj-file "~/src/cpp/tinyrenderer/obj/african_head/african_head.obj")
+      (time
+       (wire-render vertices faces test-img
+		    :resolution resolution
+		    :projection #'straight-on
+		    ;;:projection #'right-side
+		    :color 255)))
+    (refresh-image)))
