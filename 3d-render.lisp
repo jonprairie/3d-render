@@ -135,31 +135,25 @@
 		      (color 0))
   (loop for face in (coerce faces 'list)
      do
-       (let* ((face-triple (car face))
-	      (v1-index (car face-triple))
-	      (v2-index (cadr face-triple))
-	      (v3-index (caddr face-triple))
-	      (v1 (elt vertices (1- v1-index)))
-	      (v2 (elt vertices (1- v2-index)))
-	      (v3 (elt vertices (1- v3-index)))
-	      (projected-v1 (vertex->pixel v1
-					   :resolution resolution
-					   :projection projection))
-	      (projected-v2 (vertex->pixel v2
-					   :resolution resolution
-					   :projection projection))
-	      (projected-v3 (vertex->pixel v3
-					   :resolution resolution
-					   :projection projection))
-	      (x1 (car projected-v1))
-	      (x2 (car projected-v2))
-	      (x3 (car projected-v3))
-	      (y1 (cadr projected-v1))
-	      (y2 (cadr projected-v2))
-	      (y3 (cadr projected-v3)))
-	 (draw-line img x1 y1 x2 y2 :color color)
-	 (draw-line img x2 y2 x3 y3 :color color)
-	 (draw-line img x1 y1 x3 y3 :color color))))
+       (let ((sides 3))
+	 (loop for i from 0 to (1- sides)
+	    do
+	      (let* ((v-indices (car face))
+		     (v1-index (elt v-indices i))
+		     (v2-index (elt v-indices (mod (1+ i) sides)))
+		     (v1 (elt vertices (1- v1-index)))
+		     (v2 (elt vertices (1- v2-index)))
+		     (projected-v1 (vertex->pixel v1
+						  :resolution resolution
+						  :projection projection))
+		     (projected-v2 (vertex->pixel v2
+						  :resolution resolution
+						  :projection projection))
+		     (x1 (first projected-v1))
+		     (y1 (second projected-v1))
+		     (x2 (first projected-v2))
+		     (y2 (second projected-v2)))
+		(draw-line img x1 y1 x2 y2 :color color))))))
 
 
 (defun test-wireframe ()
