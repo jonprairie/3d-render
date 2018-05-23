@@ -19,37 +19,37 @@
 
 
 (defun draw-line (img x0 y0 x1 y1 &key (color 0))
-  (multiple-value-bind (first-x first-y second-x second-y)
-      (if (< x0 x1)
-	  (values x0 y0 x1 y1)
-	  (values x1 y1 x0 y0))
-    (let* ((dx (- second-x first-x))
-	   (dy (- second-y first-y))
-	   (err 0)
-	   (steep (> (abs dy) (abs dx))))
-      (multiple-value-bind (new-x0 new-y0 new-x1 new-y1 new-dx new-dy)
-	  (if steep
-	      (values first-y first-x second-y second-x dy dx)
-	      (values first-x first-y second-x second-y dx dy))
-	(let ((y new-y0))
-	  (loop for x from new-x0 upto new-x1 
+  (let* ((dx (- x1 x0))
+	 (dy (- y1 y0))
+	 (steep (> (abs dy) (abs dx))))
+    (multiple-value-bind (new-x0 new-y0 new-x1 new-y1 new-dx new-dy)
+	(if steep
+	    (values y0 x0 y1 x1 dy dx)
+	    (values x0 y0 x1 y1 dx dy))
+      (multiple-value-bind (first-x first-y second-x second-y final-dx final-dy)
+	  (if (< new-x0 new-x1)
+	      (values new-x0 new-y0 new-x1 new-y1 new-dx new-dy)
+	      (values new-x1 new-y1 new-x0 new-y0 (- 0 new-dx) (- 0 new-dy)))
+	(let ((y first-y)
+	      (err 0))
+	  (loop for x from first-x upto second-x 
 	     do 
-	       (setf err (+ err new-dy))
+	       (setf err (+ err final-dy))
 	       (if steep
 		   (setf (pixel img x y) color)
 		   (setf (pixel img y x) color))
-	       (when (>= (abs err) new-dx)
-		 (if (>= new-dy 0)
+	       (when (>= (abs err) final-dx)
+		 (if (>= final-dy 0)
 		     (progn
 		       (setf y (1+ y))
-		       (setf err (- err new-dx)))
+		       (setf err (- err final-dx)))
 		     (progn
 		       (setf y (1- y))
-		       (setf err (+ err new-dx))))))))))
+		       (setf err (+ err final-dx))))))))))
   img)
 
 
-(defun parse-obj-vertex-line (line)
+(defun parse-vertex-line (line)
   (cl-ppcre:register-groups-bind (x y z w)
 					;("^v (-?[0-9\.]*) (-?[0-9\.]*) (-?[0-9\.]*) ?(-?[0-9\.]*)?" line)
       ("^v ([^ ]*) ([^ ]*) ([^ ]*) ?([^ ]*)?" line)
@@ -63,7 +63,7 @@
 	       "([0-9]*)/?([0-9]*)?/?([0-9]*)? "
 	       "([0-9]*)/?([0-9]*)?/?([0-9]*)?"))
 
-(defun parse-obj-face-line (line)
+(defun parse-face-line (line)
   (cl-ppcre:register-groups-bind (v1 vt1 vn1 v2 vt2 vn2 v3 vt3 vn3)
       (face-regex-triple line)
     (list (list v1 v2 v3)
@@ -93,10 +93,10 @@
       (loop for line = (read-line in nil)
 	 while line do
 	   (let-cond
-	     ((parse-obj-vertex-line line)
+	     ((parse-vertex-line line)
 	      (vector-push-extend
 	       (mapcar #'parse-float result) vertices))
-	     ((parse-obj-face-line line)
+	     ((parse-face-line line)
 	      (vector-push-extend
 	       (loop for triple in result
 		  collect (mapcar #'parse-integer triple))
@@ -170,7 +170,7 @@
       (time
        (wire-render vertices faces test-img
 		    :resolution resolution
-		    :projection #'straight-on
-		    ;;:projection #'right-side
+		    ;;:projection #'straight-on
+		    :projection #'right-side
 		    :color 255)))
     (refresh-image)))
