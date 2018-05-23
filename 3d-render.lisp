@@ -26,7 +26,7 @@
     (let* ((dx (- second-x first-x))
 	   (dy (- second-y first-y))
 	   (err 0)
-	   (steep (> dy dx)))
+	   (steep (> (abs dy) (abs dx))))
       (multiple-value-bind (new-x0 new-y0 new-x1 new-y1 new-dx new-dy)
 	  (if steep
 	      (values first-y first-x second-y second-x dy dx)
@@ -38,10 +38,15 @@
 	       (if steep
 		   (setf (pixel img x y) color)
 		   (setf (pixel img y x) color))
-	       (when (>= err new-dx)
-		 (setf y (1+ y))
-		 (setf err (- err new-dx)))))
-	img))))
+	       (when (>= (abs err) new-dx)
+		 (if (>= new-dy 0)
+		     (progn
+		       (setf y (1+ y))
+		       (setf err (- err new-dx)))
+		     (progn
+		       (setf y (1- y))
+		       (setf err (+ err new-dx))))))))))
+  img)
 
 
 (defun parse-obj-vertex-line (line)
