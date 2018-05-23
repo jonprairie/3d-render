@@ -101,6 +101,8 @@
 
 (defun straight-on (vertex)
   (list (car vertex) (cadr vertex)))
+(defun right-side (vertex)
+  (list (caddr vertex) (cadr vertex)))
 
 
 (defun 11to01 (num)
