@@ -107,25 +107,19 @@
   (/ (1+ num) 2))
 
 
-(defun clamp (val low high)
-  (cond
-    ((< val low) low)
-    ((> val high) high)
-    (t val)))
-
-
 (defun vertex->pixel (vertex
 		      &key
 			(resolution '(1024 1024))
 			(projection #'straight-on))
   (let* ((projected-vertex (funcall projection vertex))
+	 (max-pixel-x (1- (car resolution)))
+	 (max-pixel-y (1- (cadr resolution)))
 	 (x (round (* (11to01 (car projected-vertex))
-		      (car resolution))))
+		      max-pixel-x)))
 	 (y (round (* (11to01 (cadr projected-vertex))
-		      (cadr resolution))))
-	 (clamped-x (clamp x 0 (1- (car resolution))))
-	 (clamped-y (clamp y 0 (1- (cadr resolution)))))
-    (list clamped-x clamped-y)))
+		      max-pixel-y)))
+	 (flipped-y (- max-pixel-y y)))
+    (list x flipped-y)))
 
 
 (defun wire-render (vertices faces img
