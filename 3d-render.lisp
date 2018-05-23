@@ -2,7 +2,7 @@
 
 
 (defun reset-test-img (&key (resolution '(32 32)) (color 255))
-  (setf test-img (make-8-bit-gray-image (car resolution) (cadr resolution)))
+  (setf test-img (make-8-bit-gray-image (first resolution) (second resolution)))
   (let ((out-img (output-image "~/test.png")))
     (fill-image test-img color)
     (write-png-file out-img test-img) test-img))
@@ -105,9 +105,9 @@
 
 
 (defun straight-on (vertex)
-  (list (car vertex) (cadr vertex)))
+  (list (first vertex) (second vertex)))
 (defun right-side (vertex)
-  (list (caddr vertex) (cadr vertex)))
+  (list (third vertex) (second vertex)))
 
 
 (defun 11to01 (num)
@@ -119,11 +119,11 @@
 			(resolution '(1024 1024))
 			(projection #'straight-on))
   (let* ((projected-vertex (funcall projection vertex))
-	 (max-pixel-x (1- (car resolution)))
-	 (max-pixel-y (1- (cadr resolution)))
-	 (x (round (* (11to01 (car projected-vertex))
+	 (max-pixel-x (1- (first resolution)))
+	 (max-pixel-y (1- (second resolution)))
+	 (x (round (* (11to01 (first projected-vertex))
 		      max-pixel-x)))
-	 (y (round (* (11to01 (cadr projected-vertex))
+	 (y (round (* (11to01 (second projected-vertex))
 		      max-pixel-y)))
 	 (flipped-y (- max-pixel-y y)))
     (list x flipped-y)))
