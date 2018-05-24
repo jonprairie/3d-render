@@ -164,9 +164,9 @@
 (defun test-wireframe ()
   (let ((resolution '(1024 1024)))
     (reset-test-img :resolution resolution :color 0)
-    (multiple-value-bind (vertices faces)
-	(read-obj-file "~/quicklisp/local-projects/3d-render/head.obj")
-      ;;(read-obj-file "~/src/cpp/tinyrenderer/obj/african_head/african_head.obj")
+    (multiple-value-bind (vertices faces scale)
+	(read-obj-file "~/quicklisp/local-projects/3d-render/obj/mini-cooper.obj")
+      ;;(read-obj-file "~/quicklisp/local-projects/3d-render/obj/head.obj")
       (time
        (wire-render vertices faces test-img
 		    :resolution resolution
