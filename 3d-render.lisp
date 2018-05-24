@@ -94,26 +94,44 @@
 (defun read-obj-file (path)
   (let ((in (open path :if-does-not-exist nil))
 	(vertices (make-array 0 :adjustable t :fill-pointer t))
-	(faces (make-array 0 :adjustable t :fill-pointer t)))
+	(faces (make-array 0 :adjustable t :fill-pointer t))
+	(scale 0))
     (when in
       (loop for line = (read-line in nil)
 	 while line do
 	   (let-cond
+	     ((parse-empty-line line)
+	      nil)
 	     ((parse-vertex-line line)
-	      (vector-push-extend
-	       (mapcar #'parse-float result) vertices))
+	      (let ((vertex-floats (mapcar #'parse-float result)))
+		(loop for coord in vertex-floats
+		   do
+		     (when (> (abs coord) scale)
+		       (setf scale (abs coord))))
+		(vector-push-extend
+		 vertex-floats vertices)))
 	     ((parse-face-line line)
 	      (vector-push-extend
 	       (loop for triple in result
 		  collect (mapcar #'parse-integer triple))
-	       faces)))))
-    (values vertices faces)))
+	       faces))))
+      (close in))
+    (values vertices faces scale)))
 
 
 (defun straight-on (vertex)
   (list (first vertex) (second vertex)))
 (defun right-side (vertex)
   (list (third vertex) (second vertex)))
+(defun angled-pi/4 (vertex)
+  (let* ((x (first vertex))
+	 (y (second vertex))
+	 (z (third vertex)))
+    (list (- (/ x (sqrt 2))
+	     (/ z (sqrt 2)))
+	  y)))
+(defun stupid (vertex)
+  (list (second vertex) (third vertex)))
 
 
 (defun 11to01 (num)
@@ -123,14 +141,15 @@
 (defun vertex->pixel (vertex
 		      &key
 			(resolution '(1024 1024))
-			(projection #'straight-on))
+			(projection #'straight-on)
+			(scale 1))
   (let* ((projected-vertex (funcall projection vertex))
 	 (max-pixel-x (1- (first resolution)))
 	 (max-pixel-y (1- (second resolution)))
-	 (x (round (* (11to01 (first projected-vertex))
-		      max-pixel-x)))
-	 (y (round (* (11to01 (second projected-vertex))
-		      max-pixel-y)))
+	 (scaled-x (/ (first projected-vertex) scale))
+	 (scaled-y (/ (second projected-vertex) scale))
+	 (x (round (* (11to01 scaled-x) max-pixel-x)))
+	 (y (round (* (11to01 scaled-y) max-pixel-y)))
 	 (flipped-y (- max-pixel-y y)))
     (list x flipped-y)))
 
@@ -139,7 +158,8 @@
 		    &key
 		      (resolution '(1024 1024))
 		      (projection #'straight-on)
-		      (color 0))
+		      (color 0)
+		      (scale 1))
   (loop for face in (coerce faces 'list)
      do
        (let ((sides 3))
@@ -152,10 +172,12 @@
 		     (v2 (elt vertices (1- v2-index)))
 		     (projected-v1 (vertex->pixel v1
 						  :resolution resolution
-						  :projection projection))
+						  :projection projection
+						  :scale scale))
 		     (projected-v2 (vertex->pixel v2
 						  :resolution resolution
-						  :projection projection))
+						  :projection projection
+						  :scale scale))
 		     (x1 (first projected-v1))
 		     (y1 (second projected-v1))
 		     (x2 (first projected-v2))
@@ -178,6 +200,9 @@
        (wire-render vertices faces test-img
 		    :resolution resolution
 		    ;;:projection #'straight-on
-		    :projection #'right-side
-		    :color 255)))
+		    ;;:projection #'right-side
+		    :projection #'stupid
+		    ;;:projection #'angled-pi/4
+		    :color 255
+		    :scale scale)))
     (refresh-image)))
