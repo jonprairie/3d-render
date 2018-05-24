@@ -52,16 +52,17 @@
 (defun parse-vertex-line (line)
   (cl-ppcre:register-groups-bind (x y z w)
 					;("^v (-?[0-9\.]*) (-?[0-9\.]*) (-?[0-9\.]*) ?(-?[0-9\.]*)?" line)
-      ("^v ([^ ]*) ([^ ]*) ([^ ]*) ?([^ ]*)?" line)
+      ("^v +([^ ]*) +([^ ]*) +([^ ]*) *?([^ ]*)?" line)
     (list x y z (if (> (length w) 0) w "1.0"))))
 
 
 (defparameter face-regex-triple
   (concatenate 'string
-	       "^f "
-	       "([0-9]*)/?([0-9]*)?/?([0-9]*)? "
-	       "([0-9]*)/?([0-9]*)?/?([0-9]*)? "
+	       "^f +"
+	       "([0-9]*)/?([0-9]*)?/?([0-9]*)? +"
+	       "([0-9]*)/?([0-9]*)?/?([0-9]*)? +"
 	       "([0-9]*)/?([0-9]*)?/?([0-9]*)?"))
+
 
 (defun parse-face-line (line)
   (cl-ppcre:register-groups-bind (v1 vt1 vn1 v2 vt2 vn2 v3 vt3 vn3)
@@ -71,11 +72,16 @@
 	  (list vn1 vn2 vn3))))
 
 
+(defun parse-empty-line (line)
+  (cl-ppcre:scan "(^$|^[ #\tab]*$|^#)" line))
+
+
 (defmacro let-cond (&body body)
   (when (car body)
     `(let ((result ,(caar body)))
        (if result
-	   ,(car (cdr (car body)))
+	   (progn
+	     ,(car (cdr (car body))))
 	   (let-cond
 	     ,@(cdr body))))))
 
@@ -160,6 +166,7 @@
 (defun refresh-image ()
   (let ((out (output-image "~/test.png")))
     (write-png-file out test-img)))
+
 
 (defun test-wireframe ()
   (let ((resolution '(1024 1024)))
