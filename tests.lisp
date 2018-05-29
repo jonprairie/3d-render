@@ -76,7 +76,7 @@
 			       (file-name "head.obj")
 			       (projection straight-on))
   (reset-test-img :resolution resolution :color '(0 0 0 255))
-  (destructuring-bind (vertices faces scale)
+  (destructuring-bind (vertices vertex-textures faces scale)
       (time (if (and use-cache obj-cache)
 		obj-cache
 		(let* ((base-path "~/quicklisp/local-projects/3d-render/obj/")

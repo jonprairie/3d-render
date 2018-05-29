@@ -22,6 +22,12 @@
 	    (list vn0 vn1 vn2)))))
 
 
+(defun parse-vertex-texture-line (line)
+  (cl-ppcre:register-groups-bind (u v w)
+      ("^vt +([^ ]*) +([^ ]*) *([^ ]*)?" line)
+    (list u v w)))
+
+
 (defun parse-empty-line (line)
   (cl-ppcre:scan "(^$|^ *$|^#)" line))
 
@@ -29,11 +35,11 @@
 (defun read-obj-file (path)
   (let ((in (open path :if-does-not-exist nil))
 	(vertices (make-array 0 :adjustable t :fill-pointer t))
+	(vertex-textures (make-array 0 :adjustable t :fill-pointer t))
 	(faces (make-array 0 :adjustable t :fill-pointer t))
 	(scale 0))
     (when in
-      (loop for line = (read-line in nil)
-	 while line do
+      (loop for line = (read-line in nil) while line do
 	   (let-cond
 	     ((parse-empty-line line)
 	      nil)
@@ -45,6 +51,9 @@
 		       (setf scale (abs coord))))
 		(vector-push-extend
 		 vertex-floats vertices)))
+	     ((parse-vertex-texture-line line)
+	      (vector-push-extend (mapcar #'parse-float result)
+				  vertex-textures))
 	     ((parse-face-line line)
 	      (vector-push-extend
 	       (loop for triple in result
@@ -56,6 +65,6 @@
 			   triple))
 	       faces))))
       (close in))
-    (list vertices faces scale)))
+    (list vertices vertex-textures faces scale)))
 
 
