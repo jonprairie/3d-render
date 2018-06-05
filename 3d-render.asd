@@ -4,6 +4,7 @@
   :serial t
   :components
   ((:file "package")
+   (:file "structs")
    (:file "util")
    (:file "linalg")
    (:file "loader")

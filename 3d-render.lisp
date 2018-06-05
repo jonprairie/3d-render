@@ -1,134 +1,110 @@
-(defun draw-line (img v0 v1 &key (color '(255 255 255 255)))
-  (let ((points-list (enum-pixels-on-line v0 v1)))
-    (loop for point in points-list do
-	 (let ((x (first point))
-	       (y (second point)))
-	   (setf (pixel img y x) (values-list color))))))
+;;(defstruct rgba r g b a)
+;;(defparameter white (make-rgba :r 255 :g 255 :b 255 :a 255))
+(defparameter white '(255 255 255 255))
+(defmacro set-pixel (img point color)
+  `(setf (pixel ,img (y ,point) (x ,point))
+	 (values-list ,color)))
+;;(list (r ,color)
+;;	(g ,color)
+;;	(b ,color)
+;;	(a ,color)))))
 
 
-(defun draw-horizontal-line (img v0 v1
+(defun draw-line (img line &key (color white))
+  (let ((points (enum-pixels-on-line line)))
+    (loop for point in points do
+	 (set-pixel img point color))))
+
+
+(defun attach-z (points-list z0 z1)
+  (loop for point in points-list
+     with num-steps = (1- (length points-list))
+     with curr-z = z0
+     with z-step = (if (= 0 num-steps) 0 (/ (- z1 z0) num-steps))
+     do
+       (setf (z point) curr-z)
+       (incf curr-z z-step)))
+
+
+(defun draw-horizontal-line (render-img line
 			     &key
-			       (z-buffer nil)
-			       (color '(255 255 255 255)))
-  (multiple-value-bind (first-v second-v)
-      (if (< (first v0) (first v1))
-	  (values v0 v1)
-	  (values v1 v0))
-    (let* ((x0 (first first-v))
-	   (x1 (first second-v))
-	   (y0 (second first-v))
-	   (y1 (second second-v))
-	   (z0 (third first-v))
-	   (z1 (third second-v))
-	   (curr-z z0)
-	   (x-step (- x1 x0))
+			       (color white))
+  (multiple-value-bind (v0 v1)
+      (if (< (>> line end-1 x) (>> line end-2 x))
+	  (values (end-1 line) (end-2 line))
+	  (values (end-2 line) (end-1 line)))
+    (let* ((curr-z (z v0))
+	   (x-step (- (x v1) (x v0)))
 	   (z-step (if (= x-step 0)
 		       0
-		       (/ (- z1 z0) (- x1 x0)))))
-      (loop for x from x0 to x1 do
+		       (/ (- (z v1) (z v0))
+			  x-step))))
+      (loop for x from (x v0) to (x v1) do
 	   (cond
-	     ((null z-buffer)
-	      (setf (pixel img y0 x) (values-list color)))
-	     ((< curr-z (aref z-buffer x y0))
-	      (setf (pixel img y0 x) (values-list color))
-	      (setf (aref z-buffer x y0) curr-z)))
-	   (incf curr-z z-step))))
-  z-buffer)
+	     ((null (z-buffer render-img))
+	      (set-pixel (img render-img) (make-v :x x :y (y v0)) color))
+	     ((< curr-z (aref (z-buffer render-img) x (y v0)))
+	      (set-pixel (img render-img) (make-v :x x :y (y v0)) color)
+	      (setf (aref (z-buffer render-img) x (y v0)) curr-z)))
+	   (incf curr-z z-step)))))
 
 
-(defun draw-shaded-triangle (img v0 v1 v2
+(defun draw-shaded-triangle (img triangle
 			     &key
-			       (z-buffer nil)
-			       (color '(255 255 255 255)))
-  (let ((horizontal-slices (enum-horizontal-slices-on-triangle (list v0 v1 v2))))
-    (loop for y being the hash-keys in horizontal-slices do
-	 (let* ((x-list (gethash y horizontal-slices))
-		(len (length x-list)))
-	   (cond 
-	     ((> len 0)
-	      (setf z-buffer
-		    (draw-horizontal-line img
-					  (first x-list)
-					  (second x-list)
-					  :z-buffer z-buffer
-					  :color color)))
-	     (t (error "x-list length should be 1 or greater"))))))
-  z-buffer)
+			       (color white))
+  (let ((horizontal-lines (enum-horizontal-lines-on-triangle triangle)))
+    (loop for y being the hash-keys in horizontal-lines do
+	 (let ((line (gethash y horizontal-lines)))
+	   (draw-horizontal-line img
+				 line
+				 :color color)))))
 
 
-(defun splice-z (pixel z)
-  (append pixel (list z)))
+(defun enum-horizontal-lines-on-triangle (triangle)
+  (loop for side in (get-sides triangle)
+     with horizontal-lines = (make-hash-table :test 'eq)
+     do
+       (loop 
+	  with points = (enum-pixels-on-line side)
+	  initially (attach-z points (>> side end-1 z) (>> side end-2 z))
+	  for point in points
+	  do
+	    (let ((line (gethash (y point) horizontal-lines)))
+	      (cond
+		((null line)
+		 (setf (gethash (y point) horizontal-lines)
+		       (make-line :end-1 point)))
+		((null (end-2 line))
+		 (setf (end-2 line) point)
+		 (when (< (x point) (>> line end-1 x))
+		   (setf line (flip-line line))))
+		((< (x point) (>> line end-1 x))
+		 (setf (end-1 line) point))
+		((> (x point) (>> line end-2 x))
+		 (setf (end-2 line) point)))))
+     finally (return horizontal-lines)))
 
 
-(defun enum-horizontal-slices-on-triangle (triangle)
-  (let ((horizontal-slices (make-hash-table :test 'eq)))
-    (loop for i from 0 to 2 do
-	 (let* ((first-index i)
-		(second-index (mod (1+ i) 3))
-		(line (enum-pixels-on-line (elt triangle first-index)
-					   (elt triangle second-index)))
-		(num-pixels (1- (length line)))
-		(z0 (third (elt triangle first-index)))
-		(z1 (third (elt triangle second-index)))
-		(z-step (if (= num-pixels 0)
-			    0
-			    (/ (- z1 z0) num-pixels)))
-		(curr-z z0))
-	   (loop for pixel in line do
-		(let* ((y (second pixel))
-		       (curr-horizontal-slice (gethash y horizontal-slices)))
-		  (cond
-		    ((null curr-horizontal-slice)
-		     (setf (gethash y horizontal-slices)
-			   (list (splice-z pixel curr-z))))
-		    ((= (length curr-horizontal-slice) 1)
-		     (if (< (first pixel) (first (first curr-horizontal-slice)))
-			 (setf (gethash y horizontal-slices)
-			       (append (list (splice-z pixel curr-z))
-				       curr-horizontal-slice))
-			 (setf (gethash y horizontal-slices)
-			       (append curr-horizontal-slice
-				       (list (splice-z pixel curr-z))))))
-		    ((= (length curr-horizontal-slice) 2)
-		     (cond
-		       ((< (first pixel) (first (first curr-horizontal-slice)))
-			(setf (gethash y horizontal-slices)
-			      (append (list (splice-z pixel curr-z))
-				      (cdr curr-horizontal-slice))))
-		       ((> (first pixel) (first (second curr-horizontal-slice)))
-			(setf (gethash y horizontal-slices)
-			      (append (list (car curr-horizontal-slice))
-				      (list (splice-z pixel curr-z)))))))
-		    (t (error "horizontal slice should have length 0, 1 or 2"))))
-		(setf curr-z (incf curr-z z-step)))))
-    horizontal-slices))
-
-
-(defun enum-pixels-on-line (v0 v1)
-  (let* ((point-list nil)
-	 (x0 (first v0))
-	 (y0 (second v0))
-	 (x1 (first v1))
-	 (y1 (second v1))
-	 (dx (- x1 x0))
-	 (dy (- y1 y0))
-	 (steep (> (abs dy) (abs dx))))
-    (multiple-value-bind (new-x0 new-y0 new-x1 new-y1 new-dx new-dy)
-	(if steep
-	    (values y0 x0 y1 x1 dy dx)
-	    (values x0 y0 x1 y1 dx dy))
+(defun enum-pixels-on-line (line)
+  (let ((point-list nil))
+    (multiple-value-bind (x0 y0 x1 y1 dx dy)
+	(if (steep-p line)
+	    (values (y0 line) (x0 line) (y1 line) (x1 line)
+		    (get-delta line 'y) (get-delta line 'x))
+	    (values (x0 line) (y0 line) (x1 line) (y1 line)
+		    (get-delta line 'x) (get-delta line 'y)))
       (multiple-value-bind (first-x first-y second-x second-y final-dx final-dy)
-	  (if (< new-x0 new-x1)
-	      (values new-x0 new-y0 new-x1 new-y1 new-dx new-dy)
-	      (values new-x1 new-y1 new-x0 new-y0 (- 0 new-dx) (- 0 new-dy)))
+	  (if (< x0 x1)
+	      (values x0 y0 x1 y1 dx dy)
+	      (values x1 y1 x0 y0 (neg dx) (neg dy)))
 	(let ((y first-y)
 	      (err 0))
 	  (loop for x from first-x upto second-x 
 	     do 
 	       (setf err (+ err final-dy))
-	       (if steep
-		   (setf point-list (cons (list y x) point-list))
-		   (setf point-list (cons (list x y) point-list)))
+	       (if (steep-p line)
+		   (setf point-list (cons (make-v :x y :y x) point-list))
+		   (setf point-list (cons (make-v :x x :y y) point-list)))
 	       (when (>= (abs err) final-dx)
 		 (if (>= final-dy 0)
 		     (progn
@@ -139,100 +115,54 @@
 		       (setf err (+ err final-dx)))))))))
     (nreverse point-list)))
 
+(defun rasterize (triangle scale)
+  (list->triangle
+   (loop for vertex in (vertices triangle)
+      collect
+	(let ((x (clamp (round (* (11to01 (x vertex)) scale))
+			0
+			(1- scale)))
+	      (y (clamp (round (* (11to01 (y vertex)) scale))
+			0
+			(1- scale)))
+	      (z (z vertex)))
+	  (make-v :x x :y y :z z)))))
 
-(defun wire-render (vertices faces img
+
+(defun wire-render (model img projection
 		    &key
-		      (resolution '(1024 1024))
-		      (projection straight-on)
-		      (color '(255 255 255 255))
-		      (scale 1))
-  (loop for face in (coerce faces 'list) do
-       (let ((sides (length (elt faces 0)))
-	     (v-indices (first face)))
-	 (loop for i from 0 to (1- sides)
-	    do
-	      (let* ((v0-index (elt v-indices i))
-		     (v1-index (elt v-indices (mod (1+ i) sides)))
-		     (v0 (elt vertices (1- v0-index)))
-		     (v1 (elt vertices (1- v1-index)))
-		     (projected-v0 (vertex->pixel v0
-						  :resolution resolution
-						  :projection projection
-						  :scale scale))
-		     (projected-v1 (vertex->pixel v1
-						  :resolution resolution
-						  :projection projection
-						  :scale scale)))
-		(draw-line img projected-v0 projected-v1 :color color))))))
+		      (color white))
+  (loop for triangle in (triangles model) do
+       (let* ((projected-triangle (project triangle projection))
+	      (rasterized-triangle (rasterize projected-triangle
+					      (first (resolution img)))))
+	 (loop for side in (sides rasterized-triangle) do
+	      (draw-line img side :color color)))))
 
 
 (defun get-triangle-light-intensity (triangle light-src)
-  (let* ((v0 (first triangle))
-	 (v1 (second triangle))
-	 (v2 (third triangle))
-	 (x0 (first v0))
-	 (x1 (first v1))
-	 (x2 (first v2))
-	 (y0 (second v0))
-	 (y1 (second v1))
-	 (y2 (second v2))
-	 (z0 (third v0))
-	 (z1 (third v1))
-	 (z2 (third v2))
-	 (tri-vector-0 (list (- x2 x0)
-			     (- y2 y0)
-			     (- z2 z0)))
-	 (tri-vector-1 (list (- x1 x0)
-			     (- y1 y0)
-			     (- z1 z0)))
-	 (normal-unit (normalize (cross tri-vector-0 tri-vector-1)))
-	 (light-unit (normalize light-src)))
-    (dot normal-unit light-unit)))
+  (dot (get-triangle-normal triangle)
+       light-src))
 
 
-(defun triangle-render (vertices faces img
-			&key
-			  (resolution '(1024 1024))
-			  (projection straight-on)
-			  (scale 1)
-			  (light-src nil))
-  (let* ((z-buffer (make-array resolution
-			       :initial-element most-positive-double-float))
-	 (z-vector (cross (second projection) (first projection)))
-	 (3d-projection (append projection (list z-vector)))
-	 (light-src (if light-src light-src z-vector)))
-    (loop for face in (coerce faces 'list) do
-	 (let* ((v-indices (first face))
-		(v0-index (elt v-indices 0))
-		(v1-index (elt v-indices 1))
-		(v2-index (elt v-indices 2))
-		(v0 (elt vertices (1- v0-index)))
-		(v1 (elt vertices (1- v1-index)))
-		(v2 (elt vertices (1- v2-index)))
-		(light-intensity (get-triangle-light-intensity
-				  (list v0 v1 v2)
-				  light-src))
-		(projected-v0 (vertex->pixel v0
-					     :resolution resolution
-					     :projection 3d-projection
-					     :scale scale))
-		(projected-v1 (vertex->pixel v1
-					     :resolution resolution
-					     :projection 3d-projection
-					     :scale scale))
-		(projected-v2 (vertex->pixel v2
-					     :resolution resolution
-					     :projection 3d-projection
-					     :scale scale)))
-	   (when (< 0 light-intensity)
-	     (setf z-buffer
-		   (draw-shaded-triangle
-		    img
-		    projected-v0
-		    projected-v1
-		    projected-v2
-		    :z-buffer z-buffer
-		    :color (list (round (* light-intensity 255))
-				 (round (* light-intensity 255))
-				 (round (* light-intensity 255))
-				 255))))))))
+(defun triangle-render (model img projection &key (light-src nil))
+  (unless light-src
+    (setf light-src (third projection)))
+  (loop for triangle in (triangles model) do
+       (let ((light-intensity (get-triangle-light-intensity
+			       triangle
+			       light-src)))
+	 (format t "triangle: ~a~%" triangle)
+	 (when (> light-intensity 0)
+	   (let* ((projected-triangle (project triangle projection))
+		  (rasterized-triangle (rasterize projected-triangle
+						  (first (resolution img)))))
+	     (format t "projected tri: ~a~%" projected-triangle)
+	     (format t "rastered tri: ~a~%" rasterized-triangle)
+	     (draw-shaded-triangle
+	      img
+	      rasterized-triangle
+	      :color (list (round (* light-intensity 255))
+			   (round (* light-intensity 255))
+			   (round (* light-intensity 255))
+			   255)))))))

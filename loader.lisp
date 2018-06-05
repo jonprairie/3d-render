@@ -1,7 +1,10 @@
 (defun parse-vertex-line (line)
   (cl-ppcre:register-groups-bind (x y z w)
-      ("^v +([^ ]*) +([^ ]*) +([^ ]*) *?([^ ]*)?" line)
-    (list x y z (if (> (length w) 0) w "1.0"))))
+      ("^v +([^ ]*) +([^ ]*) +([^ ]*) *([^ ]*)" line)
+    ;;("^v +([0-9\.-]*) +([0-9\.-]*) +([0-9\.-]*) *?([0-9\.-]*)?" line)
+    (make-v :x (parse-float x)
+	    :y (parse-float y)
+	    :z (parse-float z))))
 
 
 (defparameter face-regex-triple
@@ -25,7 +28,9 @@
 (defun parse-vertex-texture-line (line)
   (cl-ppcre:register-groups-bind (u v w)
       ("^vt +([^ ]*) +([^ ]*) *([^ ]*)?" line)
-    (list u v w)))
+    (make-v :x (parse-float u)
+	    :y (parse-float v)
+	    :z (parse-float w))))
 
 
 (defun parse-empty-line (line)
@@ -33,6 +38,7 @@
 
 
 (defun read-obj-file (path)
+  ;; reads a .obj file at PATH and returns a model struct
   (let ((in (open path :if-does-not-exist nil))
 	(vertices (make-array 0 :adjustable t :fill-pointer t))
 	(vertex-textures (make-array 0 :adjustable t :fill-pointer t))
@@ -44,16 +50,14 @@
 	     ((parse-empty-line line)
 	      nil)
 	     ((parse-vertex-line line)
-	      (let ((vertex-floats (mapcar #'parse-float result)))
-		(loop for coord in vertex-floats
-		   do
-		     (when (> (abs coord) scale)
-		       (setf scale (abs coord))))
-		(vector-push-extend
-		 vertex-floats vertices)))
+	      (let ((max-coord (max (abs (x result))
+				    (abs (y result))
+				    (abs (z result)))))
+		(when (> (abs max-coord) scale)
+		  (setf scale (abs max-coord))))
+	      (vector-push-extend result vertices))
 	     ((parse-vertex-texture-line line)
-	      (vector-push-extend (mapcar #'parse-float result)
-				  vertex-textures))
+	      (vector-push-extend result vertex-textures))
 	     ((parse-face-line line)
 	      (vector-push-extend
 	       (loop for triple in result
@@ -64,7 +68,13 @@
 				   (parse-integer x)))
 			   triple))
 	       faces))))
-      (close in))
-    (list vertices vertex-textures faces scale)))
-
-
+      (close in)
+      (make-model
+       :triangles (mapcar
+		   (lambda (x)
+		     (let ((face (mapcar (lambda (x) (- x 1)) (first x))))
+		       (make-triangle :v0 (aref vertices (first face))
+				      :v1 (aref vertices (second face))
+				      :v2 (aref vertices (third face)))))
+		   (coerce faces 'list))
+       :scale scale))))
