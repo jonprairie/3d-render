@@ -77,7 +77,8 @@
 		((null (end-2 line))
 		 (setf (end-2 line) point)
 		 (when (< (x point) (>> line end-1 x))
-		   (setf line (flip-line line))))
+		   (setf (gethash (y point) horizontal-lines)
+			 (flip-line line))))
 		((< (x point) (>> line end-1 x))
 		 (setf (end-1 line) point))
 		((> (x point) (>> line end-2 x))
@@ -152,13 +153,10 @@
        (let ((light-intensity (get-triangle-light-intensity
 			       triangle
 			       light-src)))
-	 (format t "triangle: ~a~%" triangle)
 	 (when (> light-intensity 0)
 	   (let* ((projected-triangle (project triangle projection))
 		  (rasterized-triangle (rasterize projected-triangle
 						  (first (resolution img)))))
-	     (format t "projected tri: ~a~%" projected-triangle)
-	     (format t "rastered tri: ~a~%" rasterized-triangle)
 	     (draw-shaded-triangle
 	      img
 	      rasterized-triangle
