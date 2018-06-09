@@ -1,12 +1,26 @@
 (defparameter test-img nil)
-(defparameter obj-cache nil)
 
-;;need to add z-components!
 (defparameter straight-on
   (list
    (make-v :x 1 :y 0 :z 0)
-   (make-v :x 0 :y 1 :z 0)
+   (make-v :x 0 :y -1 :z 0) ; origin is in top left for some reason
+   (make-v :x 0 :y 0 :z -1)))
+(defparameter right-side
+  (list
+   (make-v :x 0 :y 0 :z 1)
+   (make-v :x 0 :y -1 :z 0) ; origin is in top left for some reason
+   (make-v :x -1 :y 0 :z 0)))
+(defparameter back-side
+  (list
+   (make-v :x -1 :y 0 :z 0)
+   (make-v :x 0 :y -1 :z 0) ; origin is in top left for some reason
    (make-v :x 0 :y 0 :z 1)))
+(defparameter bottom
+  (list
+   (make-v :x 1 :y 0 :z 0)
+   (make-v :x 0 :y 0 :z -1) ; origin is in top left for some reason
+   (make-v :x 0 :y 1 :z 0)))
+;;need to add z-components!
 ;;(defparameter right-side
 ;;  '((0 0 1)
 ;;    (0 1 0)))
@@ -24,9 +38,6 @@
 ;;    (-.577 .577 -.577)))
 ;;(defparameter bottom-stupid
 ;;  '((.707 -.707 0)
-;;    (0 0 1)))
-;;(defparameter bottom
-;;  '((1 0 0)
 ;;    (0 0 1)))
 
 
@@ -86,6 +97,7 @@
 
 
 (defparameter base-path "~/quicklisp/local-projects/3d-render/obj/")
+(defparameter obj-cache nil)
 (defun test-triangle-render (&key
 			       (use-cache nil)
 			       (resolution '(1024 1024))
