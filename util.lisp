@@ -19,7 +19,7 @@
 
 (defun clamp (n min max)
   (cond
-    ((< min n max) n)
+    ((<= min n max) n)
     ((< n min) min)
     (t max)))
 
