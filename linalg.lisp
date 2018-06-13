@@ -108,3 +108,17 @@
       collect (make-v :x (dot vertex (first projection))
 		      :y (dot vertex (second projection))
 		      :z (dot vertex (third projection))))))
+
+
+(defun linear-interp (num-samples start end)
+  (if (= start end)
+      (list start)
+      (let* ((curr-z start)
+	     (num-steps (1- num-samples))
+	     (z-step (/ (- end start) num-steps))
+	     (result nil))
+	(dotimes (i num-samples)
+	  (setf result (cons curr-z result))
+	  (incf curr-z z-step))
+	(nreverse result))))
+
